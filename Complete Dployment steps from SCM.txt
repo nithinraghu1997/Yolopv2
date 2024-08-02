@@ -1,0 +1,186 @@
+1. Repository Structure
+
+my-project/
+│
+├── src/
+│   ├── main.py
+│   ├── database.py
+│   └── other_code.py
+│
+├── tests/
+│   ├── test_main.py
+│   ├── test_database.py
+│   └── test_other_code.py
+│
+├── scripts/
+│   ├── build.sh
+│   └── deploy.sh
+│
+├── Dockerfile
+│
+├── deployment.yml
+│
+├── Jenkinsfile
+│
+├── requirements.txt
+│
+├── README.md
+│
+└── .gitignore
+
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+
+2. Dockerfile
+   ----------
+
+# Use an official Python runtime as a parent image
+FROM python:3.9
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy the current directory contents into the container at /app
+COPY . /app
+
+# Install dependencies
+RUN python3 -m venv venv && \
+    . venv/bin/activate && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Expose the Flask port
+EXPOSE 5000
+
+# Define environment variables
+ENV FLASK_APP=main.py
+ENV FLASK_RUN_HOST=0.0.0.0
+
+# Command to run the application
+CMD ["venv/bin/flask", "run"]
+
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+
+3. deployment.yml
+   --------------
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      containers:
+        - name: myapp
+          image: dockerhub_user/myapp:${BUILD_NUMBER}  # Update with your Docker registry details and image name
+          ports:
+            - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp-service
+spec:
+  selector:
+    app: myapp
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
+  type: LoadBalancer  # Change to NodePort or ClusterIP based on your deployment needs
+
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+
+4. Jenkinsfile 
+   -----------
+
+pipeline {
+    agent any
+    
+    environment {
+        VENV = 'myenv'                      // Name of your virtual environment
+        DOCKER_REGISTRY = 'dockerhub_user'  // Docker registry username or hostname
+        IMAGE_NAME = 'myapp'                // Docker image name
+        KUBE_NAMESPACE = 'default'          // Kubernetes namespace
+        KUBE_DEPLOYMENT = 'myapp-deployment'// Kubernetes deployment name
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                // Checkout your repository containing main.py, database.py, etc.
+                git 'https://github.com/your/repository.git'
+            }
+        }
+        
+        stage('Setup Environment') {
+            steps {
+                // Install Python and create virtual environment
+                sh '''
+                    python3 -m venv ${VENV}
+                    source ${VENV}/bin/activate
+                    pip install -r requirements.txt
+                '''
+            }
+        }
+        
+        stage('Run Tests (if any)') {
+            steps {
+                // Run unit tests or other tests if applicable
+                sh 'pytest'  // Adjust command as per your testing framework
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                // Build Docker image
+                sh "docker build -t ${DOCKER_REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER} ."
+            }
+        }
+        
+        stage('Push to Docker Registry') {
+            steps {
+                // Push Docker image to registry
+                sh "docker login -u ${DOCKER_REGISTRY_USERNAME} -p ${DOCKER_REGISTRY_PASSWORD}"
+                sh "docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}"
+            }
+        }
+        
+        stage('Deploy to Kubernetes') {
+            steps {
+                // Deploy to Kubernetes
+                script {
+                    // Replace with your Kubernetes deployment YAML or Helm chart commands
+                    sh """
+                        kubectl apply -f deployment.yml -n ${KUBE_NAMESPACE}
+                        kubectl rollout status deployment/${KUBE_DEPLOYMENT} -n ${KUBE_NAMESPACE}
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            // Clean up (optional): Deactivate virtual environment
+            sh "deactivate"
+        }
+    }
+}
+
+
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+-------------------------------------------------------------------

@@ -1,0 +1,23 @@
+pipeline {
+    agent any
+
+    environment {
+        KUBE_NAMESPACE = 'your-namespace'
+        KUBE_SERVER = 'https://your-kubernetes-api-server'
+        KUBE_CREDENTIALS = 'your-kubernetes-credentials-id'
+    }
+
+    stages {
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    // Apply deployment.yaml
+                    sh "kubectl --kubeconfig=${KUBE_CONFIG} --namespace=${KUBE_NAMESPACE} apply -f deployment.yaml"
+
+                    // Apply service.yaml
+                    sh "kubectl --kubeconfig=${KUBE_CONFIG} --namespace=${KUBE_NAMESPACE} apply -f service.yaml"
+                }
+            }
+        }
+    }
+}

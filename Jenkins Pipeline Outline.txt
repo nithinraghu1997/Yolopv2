@@ -1,0 +1,69 @@
+pipeline {
+    agent any
+    
+    environment {
+        PYTHON_VERSION = '3.9.6'  // Specify the Python version you want to use
+        VENV = 'myenv'            // Name of your virtual environment
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                // Checkout your repository containing main.py, database.py, etc.
+                git 'https://github.com/your/repository.git'
+            }
+        }
+        
+        stage('Setup Environment') {
+            steps {
+                // Install Python and create virtual environment
+                script {
+                    // Install Python
+                    tool name: 'Python', type: 'hudson.plugins.python.PythonInstallation'
+                    
+                    // Create virtual environment
+                    sh "python${PYTHON_VERSION} -m venv ${VENV}"
+                }
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                // Activate virtual environment and install dependencies
+                script {
+                    // Activate virtual environment
+                    sh "source ${VENV}/bin/activate"
+                    
+                    // Install dependencies using pip
+                    sh "pip install -r requirements.txt"  // Adjust as per your requirements
+                }
+            }
+        }
+        
+        stage('Run Tests or Execute Scripts') {
+            steps {
+                // Run your Python scripts
+                script {
+                    // Activate virtual environment
+                    sh "source ${VENV}/bin/activate"
+                    
+                    // Example: Run main.py
+                    sh "python main.py"
+                    
+                    // Example: Run database.py
+                    sh "python database.py"
+                    
+                    // Deactivate virtual environment
+                    sh "deactivate"
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            // Clean up (optional): Deactivate virtual environment
+            sh "deactivate"
+        }
+    }
+}
